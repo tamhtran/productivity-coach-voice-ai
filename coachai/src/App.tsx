@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 import { VoiceAgent } from './voice-agent';
 import { VoiceIndicator } from './components/VoiceIndicator';
 import './style.css';
@@ -12,6 +13,20 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState('Not connected');
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      console.log('Attempting to fetch profiles from Supabase...');
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) {
+        console.error('Error fetching profiles:', error);
+      } else {
+        console.log('Successfully fetched profiles:', data);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
 
   const handleConnect = async () => {
     try {
@@ -66,9 +81,10 @@ export const App: React.FC = () => {
 
         // Listen to all events for debugging
         const originalEmit = session.emit;
+        // @ts-expect-error - This is a monkey-patch for debugging and the type signature is intentionally simplified.
         session.emit = function(eventName: string, ...args: any[]) {
           console.log('🔔 Event emitted:', eventName, args);
-          return originalEmit.apply(this, [eventName, ...args]);
+          return (originalEmit as any).apply(this, [eventName, ...args]);
         };
         
       } catch (error) {
