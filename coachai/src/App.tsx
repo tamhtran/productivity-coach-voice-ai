@@ -1,0 +1,128 @@
+import React, { useState } from 'react';
+import { VoiceAgent } from './voice-agent';
+import { VoiceIndicator } from './components/VoiceIndicator';
+import './style.css';
+
+const voiceAgent = new VoiceAgent();
+
+type VoiceState = 'idle' | 'listening' | 'user-speaking' | 'ai-speaking' | 'connecting';
+
+export const App: React.FC = () => {
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const [status, setStatus] = useState('Not connected');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    try {
+      setIsConnecting(true);
+      setVoiceState('connecting');
+      setStatus('Connecting...');
+      
+      await voiceAgent.connect();
+      
+      setIsConnected(true);
+      setIsConnecting(false);
+      setVoiceState('listening');
+      setStatus('Connected - You can now talk to your productivity coach!');
+      
+      // Set up event listeners for voice activity
+      const session = voiceAgent.getSession();
+      
+      try {
+        // Log all available events for debugging
+        console.log('Available session events:', Object.getOwnPropertyNames(session));
+        
+        // User speech detection
+        session.on('input_audio_buffer.speech_started' as any, (event: any) => {
+          console.log('🎤 User started speaking', event);
+          setVoiceState('user-speaking');
+        });
+        
+        session.on('input_audio_buffer.speech_stopped' as any, (event: any) => {
+          console.log('🔇 User stopped speaking', event);
+          setVoiceState('listening');
+        });
+        
+        // AI speech detection  
+        session.on('response.audio.delta' as any, (event: any) => {
+          console.log('🤖 AI speaking delta', event);
+          setVoiceState('ai-speaking');
+        });
+        
+        session.on('response.audio.done' as any, (event: any) => {
+          console.log('✅ AI finished speaking', event);
+          setVoiceState('listening');
+        });
+
+        // Additional events for better detection
+        session.on('conversation.item.input_audio_transcription.completed' as any, (event: any) => {
+          console.log('📝 User speech transcription completed', event);
+        });
+
+        session.on('response.audio_transcript.delta' as any, (event: any) => {
+          console.log('📝 AI audio transcript delta', event);
+        });
+
+        // Listen to all events for debugging
+        const originalEmit = session.emit;
+        session.emit = function(eventName: string, ...args: any[]) {
+          console.log('🔔 Event emitted:', eventName, args);
+          return originalEmit.apply(this, [eventName, ...args]);
+        };
+        
+      } catch (error) {
+        console.log('Event listeners setup - some events may not be available:', error);
+      }
+      
+    } catch (error) {
+      console.error('Connection failed:', error);
+      setStatus(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsConnecting(false);
+      setVoiceState('idle');
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await voiceAgent.disconnect();
+      
+      setIsConnected(false);
+      setVoiceState('idle');
+      setStatus('Disconnected');
+    } catch (error) {
+      console.error('Disconnect failed:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Productivity Coach Voice AI</h1>
+      <div className="card">
+        <VoiceIndicator state={voiceState} />
+        <div className="controls">
+          <button 
+            onClick={handleConnect}
+            disabled={isConnecting || isConnected}
+            type="button"
+          >
+            Connect
+          </button>
+          <button 
+            onClick={handleDisconnect}
+            disabled={!isConnected}
+            type="button"
+          >
+            Disconnect
+          </button>
+        </div>
+        <div className="status">
+          <p>{status}</p>
+        </div>
+      </div>
+      <p className="read-the-docs">
+        Click "Connect" to start chatting with your productivity coach
+      </p>
+    </div>
+  );
+};
