@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
+import type { User } from '@supabase/supabase-js';
 import { VoiceAgent } from './voice-agent';
 import { VoiceIndicator } from './components/VoiceIndicator';
 import './style.css';
@@ -13,6 +14,21 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState('Not connected');
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const aiTranscriptRef = useRef('');
+
+  const saveMessage = async (role: 'user' | 'assistant', content: string) => {
+    if (!user || !content) return;
+    console.log(`Saving ${role} message: ${content}`);
+    const { error } = await supabase.from('messages').insert({
+      user_id: user.id,
+      role,
+      content,
+    });
+    if (error) {
+      console.error('Error saving message:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchProfiles = async () => {
@@ -40,6 +56,13 @@ export const App: React.FC = () => {
       setIsConnecting(false);
       setVoiceState('listening');
       setStatus('Connected - You can now talk to your productivity coach!');
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No user is logged in. Messages will not be saved.');
+        setStatus('Warning: No user logged in. Conversation will not be saved.');
+      }
+      setUser(user);
       
       // Set up event listeners for voice activity
       const session = voiceAgent.getSession();
@@ -68,15 +91,19 @@ export const App: React.FC = () => {
         session.on('response.audio.done' as any, (event: any) => {
           console.log('✅ AI finished speaking', event);
           setVoiceState('listening');
+          saveMessage('assistant', aiTranscriptRef.current);
+          aiTranscriptRef.current = ''; // Reset for next message
         });
 
         // Additional events for better detection
-        session.on('conversation.item.input_audio_transcription.completed' as any, (event: any) => {
+        session.on('conversation.item.input_audio_transcription.completed' as any, (event: { transcript: string }) => {
           console.log('📝 User speech transcription completed', event);
+          saveMessage('user', event.transcript);
         });
 
-        session.on('response.audio_transcript.delta' as any, (event: any) => {
-          console.log('📝 AI audio transcript delta', event);
+        session.on('response.audio_transcript.delta' as any, (event: { transcript: string }) => {
+          // console.log('📝 AI audio transcript delta', event); // Too noisy
+          aiTranscriptRef.current += event.transcript;
         });
 
         // Listen to all events for debugging

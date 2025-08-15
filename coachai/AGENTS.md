@@ -8,6 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build the application (runs TypeScript compilation + Vite build)
 - `npm run preview` - Preview the built application
 
+## Database Management
+
+This project uses the Supabase CLI to manage database schema migrations.
+
+- **Create a new migration**: `npx supabase migrations new <migration_name>`
+- **Apply migrations locally**: `npx supabase db push` (requires Docker)
+- **Reset local database**: `npx supabase db reset`
+
+Migrations are stored in the `supabase/migrations` directory. Key tables include:
+- `profiles`: Stores user profile information.
+- `messages`: Stores conversation history between the user and the AI.
+
 ## Architecture Overview
 
 This is a TypeScript + Vite web application that implements a voice-based productivity coaching AI using OpenAI's Realtime API.
@@ -20,10 +32,9 @@ This is a TypeScript + Vite web application that implements a voice-based produc
 - Manages connection state and voice session lifecycle
 - Uses `gpt-4o-realtime-preview-2025-06-03` model with 'alloy' voice
 
-**Main Application** (`src/main.ts`):
-- Simple DOM-based UI with voice indicator and connection controls
-- Event-driven architecture for voice activity (listening/speaking states)
-- Handles connection/disconnection flows with proper error handling
+**Main Application** (`src/App.tsx`):
+- Main React component that manages state and UI.
+- Handles voice connection, event listeners, and saving conversation history to Supabase.
 
 **Supabase Client** (`src/supabaseClient.ts`):
 - Initializes and exports a singleton Supabase client.
@@ -40,6 +51,7 @@ This is a TypeScript + Vite web application that implements a voice-based produc
 
 - `@openai/agents` - OpenAI's official agents SDK for realtime voice
 - `@supabase/supabase-js` - Supabase client library for interacting with the backend.
+- `supabase` - Supabase CLI for database migrations (dev dependency).
 - `zod` - Runtime type validation (pinned to <=3.25.67)
 - Standard Vite + TypeScript development stack
 
